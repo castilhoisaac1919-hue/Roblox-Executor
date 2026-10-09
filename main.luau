@@ -1105,55 +1105,44 @@ end
 do
 	local dragging = false
 	local dragStart, startPos
-	local pressTime = 0
-	local wasHeld = false
-	local isPressing = false
+	local hasMoved = false
 
 	toggleButton.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			pressTime = tick()
-			wasHeld = false
-			dragging = false
-			isPressing = true
+			dragging = true
+			hasMoved = false
 			dragStart = input.Position
 			startPos = toggleButton.Position
 
-			task.spawn(function()
-				task.wait(1)
-				if isPressing and (tick() - pressTime) >= 0.95 then
-					wasHeld = true
-					dragging = true
+			local conn
+			conn = input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+					conn:Disconnect()
 				end
 			end)
 		end
 	end)
 
 	UserInputService.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			if dragging then
-				local delta = input.Position - dragStart
-				toggleButton.Position = UDim2.new(
-					startPos.X.Scale,
-					startPos.X.Offset + delta.X,
-					startPos.Y.Scale,
-					startPos.Y.Offset + delta.Y
-				)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local delta = input.Position - dragStart
+			if math.abs(delta.X) > 3 or math.abs(delta.Y) > 3 then
+				hasMoved = true
 			end
-		end
-	end)
-
-	UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			isPressing = false
-			dragging = false
+			toggleButton.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
 		end
 	end)
 
 	toggleButton.MouseButton1Click:Connect(function()
-		if wasHeld or (tick() - pressTime) >= 1 then
-			return
+		if not hasMoved then
+			mainFrame.Visible = not mainFrame.Visible
 		end
-		mainFrame.Visible = not mainFrame.Visible
 	end)
 end
 
