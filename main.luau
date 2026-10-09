@@ -11,7 +11,6 @@ local UserInputService = cloneref(game:GetService("UserInputService"))
 local RunService = cloneref(game:GetService("RunService"))
 local CoreGui = cloneref(game:GetService("CoreGui"))
 local HttpService = cloneref(game:GetService("HttpService"))
-local TextService = cloneref(game:GetService("TextService"))
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -37,271 +36,8 @@ end)
 
 screenGui.Parent = getHui()
 
-local pingHistory = {}
-local fpsHistory = {}
-local cpuHistory = {}
-local gpuHistory = {}
-local receivedHistory = {}
-local sentHistory = {}
-local memoryHistory = {}
-local historyTimes = {}
-
-local startTime = tick()
-local autoScrollEnabled = true
-local pointSpacing = 36
-local currentMode = "Ping"
-
-local frameCount = 0
-local lastFpsTick = tick()
-local currentFps = 60
-
-RunService.RenderStepped:Connect(function()
-	frameCount = frameCount + 1
-end)
-
-local dataPingItem = nil
-pcall(function()
-	dataPingItem = Stats.Network.ServerStatsItem["Data Ping"]
-end)
-
-local dataReceiveItem = nil
-pcall(function()
-	dataReceiveItem = Stats.Network.ServerStatsItem["Data Receive Rate"]
-end)
-
-local dataSendItem = nil
-pcall(function()
-	dataSendItem = Stats.Network.ServerStatsItem["Data Send Rate"]
-end)
-
-local function getPing()
-	local pingValue = 0
-	if dataPingItem then
-		pcall(function()
-			pingValue = math.floor(dataPingItem:GetValue())
-		end)
-	end
-	if pingValue == 0 then
-		pcall(function()
-			pingValue = math.floor(LocalPlayer:GetNetworkPing() * 1000)
-		end)
-	end
-	return math.max(1, pingValue)
-end
-
-local function getCpu()
-	local cpuVal = 0
-	pcall(function()
-		if Stats:FindFirstChild("PerformanceStats") and Stats.PerformanceStats:FindFirstChild("CPU") then
-			cpuVal = Stats.PerformanceStats.CPU:GetValue()
-		end
-	end)
-	if cpuVal == 0 then
-		pcall(function()
-			cpuVal = Stats.Workspace.Heartbeat:GetValue()
-		end)
-	end
-	return math.max(0, math.floor(cpuVal + 0.5))
-end
-
-local function getGpu()
-	local gpuVal = 0
-	pcall(function()
-		if Stats:FindFirstChild("PerformanceStats") and Stats.PerformanceStats:FindFirstChild("GPU") then
-			gpuVal = Stats.PerformanceStats.GPU:GetValue()
-		end
-	end)
-	return math.max(0, math.floor(gpuVal + 0.5))
-end
-
-local function getReceived()
-	local recVal = 0
-	if dataReceiveItem then
-		pcall(function()
-			recVal = math.floor(dataReceiveItem:GetValue())
-		end)
-	end
-	if recVal == 0 then
-		pcall(function()
-			recVal = math.floor(Stats.DataReceiveKbps)
-		end)
-	end
-	return math.max(0, recVal)
-end
-
-local function getSent()
-	local sendVal = 0
-	if dataSendItem then
-		pcall(function()
-			sendVal = math.floor(dataSendItem:GetValue())
-		end)
-	end
-	if sendVal == 0 then
-		pcall(function()
-			sendVal = math.floor(Stats.DataSendKbps)
-		end)
-	end
-	return math.max(0, sendVal)
-end
-
-local function getMemory()
-	local memVal = 0
-	pcall(function()
-		memVal = math.floor(Stats:GetTotalMemoryUsageMb())
-	end)
-	return math.max(0, memVal)
-end
-
-local function getCpuTemp(ms)
-	return math.clamp(math.floor(38 + (ms * 1.4)), 38, 92)
-end
-
-local function getGpuTemp(ms)
-	return math.clamp(math.floor(40 + (ms * 1.5)), 40, 95)
-end
-
-local function getPingColor(ping)
-	local alpha = math.clamp((ping - 20) / 280, 0, 1)
-	return Color3.fromRGB(51, 95, 255):Lerp(Color3.fromRGB(255, 51, 51), alpha)
-end
-
-local function getPingRatio(ping)
-	if ping <= 50 then
-		return (ping / 50) * (1 / 7)
-	elseif ping <= 100 then
-		return (1 / 7) + ((ping - 50) / 50) * (1 / 7)
-	elseif ping <= 250 then
-		return (2 / 7) + ((ping - 100) / 150) * (1 / 7)
-	elseif ping <= 500 then
-		return (3 / 7) + ((ping - 250) / 250) * (1 / 7)
-	elseif ping <= 750 then
-		return (4 / 7) + ((ping - 500) / 250) * (1 / 7)
-	elseif ping <= 1000 then
-		return (5 / 7) + ((ping - 750) / 250) * (1 / 7)
-	elseif ping <= 1500 then
-		return (6 / 7) + ((ping - 1000) / 500) * (1 / 7)
-	else
-		return 1.0
-	end
-end
-
-local function getFpsColor(fps)
-	if fps <= 60 then
-		local alpha = math.clamp(fps / 60, 0, 1)
-		return Color3.fromRGB(255, 51, 51):Lerp(Color3.fromRGB(75, 220, 100), alpha)
-	else
-		local alpha = math.clamp((fps - 60) / 180, 0, 1)
-		return Color3.fromRGB(75, 220, 100):Lerp(Color3.fromRGB(51, 95, 255), alpha)
-	end
-end
-
-local function getFpsRatio(fps)
-	if fps <= 15 then
-		return (fps / 15) * (1 / 7)
-	elseif fps <= 30 then
-		return (1 / 7) + ((fps - 15) / 15) * (1 / 7)
-	elseif fps <= 45 then
-		return (2 / 7) + ((fps - 30) / 15) * (1 / 7)
-	elseif fps <= 60 then
-		return (3 / 7) + ((fps - 45) / 15) * (1 / 7)
-	elseif fps <= 90 then
-		return (4 / 7) + ((fps - 60) / 30) * (1 / 7)
-	elseif fps <= 120 then
-		return (5 / 7) + ((fps - 90) / 30) * (1 / 7)
-	elseif fps <= 240 then
-		return (6 / 7) + ((fps - 120) / 120) * (1 / 7)
-	else
-		return 1.0
-	end
-end
-
-local function getCpuColor(ms)
-	local alpha = math.clamp(ms / 33, 0, 1)
-	return Color3.fromRGB(75, 220, 100):Lerp(Color3.fromRGB(255, 51, 51), alpha)
-end
-
-local function getCpuRatio(ms)
-	if ms <= 5 then
-		return (ms / 5) * (1 / 6)
-	elseif ms <= 10 then
-		return (1 / 6) + ((ms - 5) / 5) * (1 / 6)
-	elseif ms <= 16 then
-		return (2 / 6) + ((ms - 10) / 6) * (1 / 6)
-	elseif ms <= 25 then
-		return (3 / 6) + ((ms - 16) / 9) * (1 / 6)
-	elseif ms <= 33 then
-		return (4 / 6) + ((ms - 25) / 8) * (1 / 6)
-	elseif ms <= 50 then
-		return (5 / 6) + ((ms - 33) / 17) * (1 / 6)
-	else
-		return 1.0
-	end
-end
-
-local function getGpuColor(ms)
-	return getCpuColor(ms)
-end
-
-local function getGpuRatio(ms)
-	return getCpuRatio(ms)
-end
-
-local function getReceivedColor(kb)
-	local alpha = math.clamp(kb / 500, 0, 1)
-	return Color3.fromRGB(51, 95, 255):Lerp(Color3.fromRGB(75, 220, 100), alpha)
-end
-
-local function getReceivedRatio(kb)
-	if kb <= 10 then
-		return (kb / 10) * (1 / 6)
-	elseif kb <= 50 then
-		return (1 / 6) + ((kb - 10) / 40) * (1 / 6)
-	elseif kb <= 100 then
-		return (2 / 6) + ((kb - 50) / 50) * (1 / 6)
-	elseif kb <= 250 then
-		return (3 / 6) + ((kb - 100) / 150) * (1 / 6)
-	elseif kb <= 500 then
-		return (4 / 6) + ((kb - 250) / 250) * (1 / 6)
-	elseif kb <= 1000 then
-		return (5 / 6) + ((kb - 500) / 500) * (1 / 6)
-	else
-		return 1.0
-	end
-end
-
-local function getSentColor(kb)
-	return getReceivedColor(kb)
-end
-
-local function getSentRatio(kb)
-	return getReceivedRatio(kb)
-end
-
-local function getMemoryColor(mb)
-	local alpha = math.clamp(mb / 3000, 0, 1)
-	return Color3.fromRGB(75, 220, 100):Lerp(Color3.fromRGB(255, 51, 51), alpha)
-end
-
-local function getMemoryRatio(mb)
-	if mb <= 250 then
-		return (mb / 250) * (1 / 6)
-	elseif mb <= 500 then
-		return (1 / 6) + ((mb - 250) / 250) * (1 / 6)
-	elseif mb <= 1000 then
-		return (2 / 6) + ((mb - 500) / 500) * (1 / 6)
-	elseif mb <= 2000 then
-		return (3 / 6) + ((mb - 1000) / 1000) * (1 / 6)
-	elseif mb <= 3000 then
-		return (4 / 6) + ((mb - 2000) / 1000) * (1 / 6)
-	elseif mb <= 4000 then
-		return (5 / 6) + ((mb - 3000) / 1000) * (1 / 6)
-	else
-		return 1.0
-	end
-end
-
 local settingsData = {
-	buttonSize = "medium",
+	buttonSize = "médio",
 	accentColor = "Default"
 }
 
@@ -462,8 +198,8 @@ local computerPage = createPage("Computer")
 showPage("Injection")
 
 local navButtons = {
-	{ name = "Injection", icon = "💉" },
 	{ name = "Cloud", icon = "☁️" },
+	{ name = "Injection", icon = "💉" },
 	{ name = "SavedScripts", icon = "📚" },
 	{ name = "Settings", icon = "⚙️" },
 	{ name = "Computer", icon = "💻" }
@@ -661,7 +397,7 @@ detailsOverlay.Parent = mainFrame
 local detailsModal = Instance.new("Frame")
 detailsModal.Name = "DetailsModal"
 detailsModal.AnchorPoint = Vector2.new(0.5, 0.5)
-detailsModal.Size = UDim2.new(0, 400, 0, 320)
+detailsModal.Size = UDim2.new(0, 420, 0, 380)
 detailsModal.Position = UDim2.new(0.5, 0, 0.5, 0)
 detailsModal.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
 detailsModal.ZIndex = 11
@@ -687,22 +423,26 @@ modalTitle.Font = Enum.Font.BuilderSansBold
 modalTitle.ZIndex = 11
 modalTitle.Parent = detailsModal
 
-local modalInfo = Instance.new("TextLabel")
-modalInfo.Size = UDim2.new(1, -30, 0, 60)
-modalInfo.Position = UDim2.new(0, 15, 0, 45)
-modalInfo.BackgroundTransparency = 1
-modalInfo.Text = "Creator: -\nCreated: -\nUpdated: -"
+local modalInfo = Instance.new("TextBox")
+modalInfo.Size = UDim2.new(1, -30, 0, 80)
+modalInfo.Position = UDim2.new(0, 15, 0, 42)
+modalInfo.BackgroundColor3 = Color3.fromRGB(16, 16, 20)
+modalInfo.Text = "Creator: -\nCreated: -\nUpdated: -\nDescription: -"
 modalInfo.TextColor3 = Color3.fromRGB(160, 160, 170)
 modalInfo.TextSize = 11
 modalInfo.Font = Enum.Font.BuilderSans
 modalInfo.TextXAlignment = Enum.TextXAlignment.Left
 modalInfo.TextYAlignment = Enum.TextYAlignment.Top
+modalInfo.MultiLine = true
+modalInfo.ClearTextOnFocus = false
+modalInfo.TextEditable = false
 modalInfo.ZIndex = 11
 modalInfo.Parent = detailsModal
+Instance.new("UICorner", modalInfo).CornerRadius = UDim.new(0, 6)
 
 local modalBtnHolder = Instance.new("Frame")
-modalBtnHolder.Size = UDim2.new(1, -30, 0, 190)
-modalBtnHolder.Position = UDim2.new(0, 15, 0, 115)
+modalBtnHolder.Size = UDim2.new(1, -30, 0, 220)
+modalBtnHolder.Position = UDim2.new(0, 15, 0, 130)
 modalBtnHolder.BackgroundTransparency = 1
 modalBtnHolder.ZIndex = 11
 modalBtnHolder.Parent = detailsModal
@@ -874,7 +614,8 @@ local function fetchScripts(query)
 				clickBtn.Parent = card
 
 				clickBtn.MouseButton1Click:Connect(function()
-					modalInfo.Text = string.format("Creator: %s\nCreated: %s\nUpdated: %s", scriptData.game and scriptData.game.name or "-", scriptData.createdAt or "-", scriptData.updatedAt or "-")
+					local desc = scriptData.description or "-"
+					modalInfo.Text = string.format("Creator: %s\nCreated: %s\nUpdated: %s\nDescription: %s", scriptData.game and scriptData.game.name or "-", scriptData.createdAt or "-", scriptData.updatedAt or "-", desc)
 					detailsOverlay.Visible = true
 
 					for _, child in ipairs(modalBtnHolder:GetChildren()) do
@@ -1227,7 +968,124 @@ local lblMem = createCompStatCard("Memory")
 
 compStatsScroll.CanvasSize = UDim2.new(0, 0, 0, compLayout.AbsoluteContentSize.Y + 20)
 
+local dataPingItem = nil
+pcall(function()
+	dataPingItem = Stats.Network.ServerStatsItem["Data Ping"]
+end)
+
+local dataReceiveItem = nil
+pcall(function()
+	dataReceiveItem = Stats.Network.ServerStatsItem["Data Receive Rate"]
+end)
+
+local dataSendItem = nil
+pcall(function()
+	dataSendItem = Stats.Network.ServerStatsItem["Data Send Rate"]
+end)
+
+local function getPing()
+	local pingValue = 0
+	if dataPingItem then
+		pcall(function()
+			pingValue = math.floor(dataPingItem:GetValue())
+		end)
+	end
+	if pingValue == 0 then
+		pcall(function()
+			pingValue = math.floor(LocalPlayer:GetNetworkPing() * 1000)
+		end)
+	end
+	return math.max(1, pingValue)
+end
+
+local function getCpu()
+	local cpuVal = 0
+	pcall(function()
+		if Stats:FindFirstChild("PerformanceStats") and Stats.PerformanceStats:FindFirstChild("CPU") then
+			cpuVal = Stats.PerformanceStats.CPU:GetValue()
+		end
+	end)
+	if cpuVal == 0 then
+		pcall(function()
+			cpuVal = Stats.Workspace.Heartbeat:GetValue()
+		end)
+	end
+	return math.max(0, math.floor(cpuVal + 0.5))
+end
+
+local function getGpu()
+	local gpuVal = 0
+	pcall(function()
+		if Stats:FindFirstChild("PerformanceStats") and Stats.PerformanceStats:FindFirstChild("GPU") then
+			gpuVal = Stats.PerformanceStats.GPU:GetValue()
+		end
+	end)
+	return math.max(0, math.floor(gpuVal + 0.5))
+end
+
+local function getReceived()
+	local recVal = 0
+	if dataReceiveItem then
+		pcall(function()
+			recVal = math.floor(dataReceiveItem:GetValue())
+		end)
+	end
+	if recVal == 0 then
+		pcall(function()
+			recVal = math.floor(Stats.DataReceiveKbps)
+		end)
+	end
+	return math.max(0, recVal)
+end
+
+local function getSent()
+	local sendVal = 0
+	if dataSendItem then
+		pcall(function()
+			sendVal = math.floor(dataSendItem:GetValue())
+		end)
+	end
+	if sendVal == 0 then
+		pcall(function()
+			sendVal = math.floor(Stats.DataSendKbps)
+		end)
+	end
+	return math.max(0, sendVal)
+end
+
+local function getMemory()
+	local memVal = 0
+	pcall(function()
+		memVal = math.floor(Stats:GetTotalMemoryUsageMb())
+	end)
+	return math.max(0, memVal)
+end
+
+local function getCpuTemp(ms)
+	return math.clamp(math.floor(38 + (ms * 1.4)), 38, 92)
+end
+
+local function getGpuTemp(ms)
+	return math.clamp(math.floor(40 + (ms * 1.5)), 40, 95)
+end
+
+local frameCount = 0
+local lastFpsTick = tick()
+local currentFps = 60
+
+RunService.RenderStepped:Connect(function()
+	frameCount = frameCount + 1
+end)
+
 local function updateComputerStats()
+	local now = tick()
+	local elapsed = now - lastFpsTick
+	if elapsed > 0 then
+		currentFps = math.floor(frameCount / elapsed + 0.5)
+	end
+	frameCount = 0
+	lastFpsTick = now
+
 	local p = getPing()
 	local c = getCpu()
 	local g = getGpu()
@@ -1246,41 +1104,55 @@ end
 
 do
 	local dragging = false
-	local dragInput, dragStart, startPos
+	local dragStart, startPos
+	local pressTime = 0
+	local wasHeld = false
+	local isPressing = false
 
 	toggleButton.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
+			pressTime = tick()
+			wasHeld = false
+			dragging = false
+			isPressing = true
 			dragStart = input.Position
 			startPos = toggleButton.Position
-			
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
+
+			task.spawn(function()
+				task.wait(1)
+				if isPressing and (tick() - pressTime) >= 0.95 then
+					wasHeld = true
+					dragging = true
 				end
 			end)
 		end
 	end)
 
-	toggleButton.InputChanged:Connect(function(input)
+	UserInputService.InputChanged:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			dragInput = input
+			if dragging then
+				local delta = input.Position - dragStart
+				toggleButton.Position = UDim2.new(
+					startPos.X.Scale,
+					startPos.X.Offset + delta.X,
+					startPos.Y.Scale,
+					startPos.Y.Offset + delta.Y
+				)
+			end
 		end
 	end)
 
-	UserInputService.InputChanged:Connect(function(input)
-		if input == dragInput and dragging then
-			local delta = input.Position - dragStart
-			toggleButton.Position = UDim2.new(
-				startPos.X.Scale,
-				startPos.X.Offset + delta.X,
-				startPos.Y.Scale,
-				startPos.Y.Offset + delta.Y
-			)
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			isPressing = false
+			dragging = false
 		end
 	end)
 
 	toggleButton.MouseButton1Click:Connect(function()
+		if wasHeld or (tick() - pressTime) >= 1 then
+			return
+		end
 		mainFrame.Visible = not mainFrame.Visible
 	end)
 end
