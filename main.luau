@@ -365,7 +365,6 @@ local function applyButtonSize()
 		toggleButton.Size = UDim2.new(0, 32, 0, 32)
 		toggleButton.Position = UDim2.new(0, 16, 1, -48)
 		toggleButton.TextSize = 14
-		toggleButton.CornerRadius = UDim.new(1, 0)
 	elseif settingsData.buttonSize == "grande" then
 		toggleButton.Size = UDim2.new(0, 52, 0, 52)
 		toggleButton.Position = UDim2.new(0, 16, 1, -68)
@@ -1247,55 +1246,41 @@ end
 
 do
 	local dragging = false
-	local dragStart, startPos
-	local pressTime = 0
-	local wasHeld = false
-	local isPressing = false
+	local dragInput, dragStart, startPos
 
 	toggleButton.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			pressTime = tick()
-			wasHeld = false
-			dragging = false
-			isPressing = true
+			dragging = true
 			dragStart = input.Position
 			startPos = toggleButton.Position
-
-			task.spawn(function()
-				task.wait(1)
-				if isPressing and (tick() - pressTime) >= 0.95 then
-					wasHeld = true
-					dragging = true
+			
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
 				end
 			end)
 		end
 	end)
 
-	UserInputService.InputChanged:Connect(function(input)
+	toggleButton.InputChanged:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			if dragging then
-				local delta = input.Position - dragStart
-				toggleButton.Position = UDim2.new(
-					startPos.X.Scale,
-					startPos.X.Offset + delta.X,
-					startPos.Y.Scale,
-					startPos.Y.Offset + delta.Y
-				)
-			end
+			dragInput = input
 		end
 	end)
 
-	UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			isPressing = false
-			dragging = false
+	UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			local delta = input.Position - dragStart
+			toggleButton.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
 		end
 	end)
 
 	toggleButton.MouseButton1Click:Connect(function()
-		if wasHeld or (tick() - pressTime) >= 1 then
-			return
-		end
 		mainFrame.Visible = not mainFrame.Visible
 	end)
 end
